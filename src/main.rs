@@ -15,28 +15,35 @@ use std::error::Error;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+fn get_env(var: &str) -> String {
+    std::env::var(var).expect(&format!("{} not set", var))
+}
+
 fn main() {
     let env = env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info");
     env_logger::init_from_env(env);
 
-    let mut dns_name =
-        std::env::var("ROUTE53_DOMAIN_A_RECORD").expect("ROUTE53_DOMAIN_A_RECORD not set");
+    let mut dns_name = get_env("ROUTE53_DOMAIN_A_RECORD");
     if !dns_name.ends_with('.') {
-	dns_name.push('.');
+        dns_name.push('.');
     }
+    let my_ip_url = get_env("ROUTE53_IP_URL");
+    let update_frequency = get_env("ROUTE53_UPDATE_FREQUENCY")
+        .parse::<u64>()
+        .expect("Can't parse ROUTE53_UPDATE_FREQUENCY as integer");
 
     loop {
-        match run(&dns_name) {
+        match run(&dns_name, &my_ip_url) {
             Ok(true) => info!("A Record Updated"),
             Ok(false) => info!("No update required"),
             Err(e) => error!("{:?}", e),
         }
-        thread::sleep(Duration::new(60 * 10, 0));
+        thread::sleep(Duration::from_secs(update_frequency));
     }
 }
 
-fn run(dns_name: &str) -> Result<bool, Box<dyn Error>> {
-    let my_ip = reqwest::get("http://whatismyip.akamai.com")?.text()?;
+fn run(dns_name: &str, my_ip_url: &str) -> Result<bool, Box<dyn Error>> {
+    let my_ip = reqwest::get(my_ip_url)?.text()?;
     info!("My IP: {}", &my_ip);
 
     info!("Domain: {}", &dns_name);
@@ -120,9 +127,7 @@ fn run(dns_name: &str) -> Result<bool, Box<dyn Error>> {
 
     // Poll pending change until completed or timed out
     let poll_id = change_info.id.trim_start_matches("/change/").to_string();
-    let poll_request = GetChangeRequest {
-        id: poll_id,
-    };
+    let poll_request = GetChangeRequest { id: poll_id };
     let poll_start = SystemTime::now();
 
     while poll_start.elapsed()? < Duration::from_secs(60) {
@@ -136,7 +141,7 @@ fn run(dns_name: &str) -> Result<bool, Box<dyn Error>> {
             _ => return Err("Invalid ChangeInfo Status".into()),
         }
 
-	thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(1));
     }
 
     Err("Timeout polling for change completion event".into())
