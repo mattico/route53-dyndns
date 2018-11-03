@@ -119,12 +119,6 @@ fn run(dns_name: &str, my_ip_url: &str) -> Result<bool, Box<dyn Error>> {
         .change_info;
     debug!("{:?}", &change_info);
 
-    match change_info.status.as_str() {
-        "INSYNC" => return Ok(true),
-        "PENDING" => {}
-        _ => return Err("Invalid ChangeInfo Status".into()),
-    }
-
     // Poll pending change until completed or timed out
     let poll_id = change_info.id.trim_start_matches("/change/").to_string();
     let poll_request = GetChangeRequest { id: poll_id };
