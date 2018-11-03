@@ -1,0 +1,12 @@
+[package]
+name = "route53-dyndns"
+version = "0.1.0"
+authors = ["Matt Ickstadt <mattico8@gmail.com>"]
+
+[dependencies]
+log = "0.4"
+env_logger = "0.5"
+reqwest = "0.9"
+rusoto_core = "0.35"
+rusoto_route53 = "0.35"
+
